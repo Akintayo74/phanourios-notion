@@ -54,18 +54,35 @@ For `update_content`:
 - `old_str` must exactly match existing page content
 - Schema marks both `properties` and `content_updates` as required — pass `properties: {}` when using `update_content`
 
-### notion-search — key details
+### notion-fetch — key details (verified 2026-03-26)
 
-- `filters` is **required** (pass `filters: {}` if no filters needed)
+- **Parameter name is `id`** (not `url`) — passing `url` causes a validation error
+- Accepts Notion URLs, raw UUIDs, or data source URLs (`collection://...`)
+- **Returns JSON, not raw markdown.** Shape: `{"metadata":{"type":"page"},"title":"...","url":"...","text":"<page markdown here>"}`
+  - Extract page content from the `text` field
+  - The `text` field contains Notion-flavored Markdown wrapped in a `<page>` XML tag
+- Use this to get `old_str` values for `update_content` — use the `text` field
+
+### notion-search — key details (verified 2026-03-26)
+
+- **Parameter name is `query`** (required), **`filters` is required** (pass `filters: {}` if no filters)
 - Use `data_source_url` (format: `collection://UUID`) for database-scoped search
 - `page_size` default 10, max 25
 - `max_highlight_length` default 200, set to 0 to omit
+- **Returns JSON.** Shape: `{"results":[{...}], "type":"workspace_search"}`
+  - `type` is always `"workspace_search"` regardless of whether `data_source_url` is used — this is just a label, not confirmation of scope
+  - Each result: `{"id":"<uuid-no-dashes>","title":"...","url":"<uuid-no-dashes>","type":"page","highlight":"...","timestamp":"..."}`
+  - **`url` field is a UUID without dashes**, not a full Notion URL — format as `https://www.notion.so/{url}` or pass directly to `notion-fetch` via `id`
+- `data_source_url` scoping: passes the collection URL to restrict to a database. Whether it actually scopes in workspace_search mode is unconfirmed — test further in sub-phase 2b.
 
-### notion-fetch — key details
+---
 
-- Accepts Notion URLs, raw UUIDs, or data source URLs (`collection://...`)
-- Returns page content in Notion-flavored Markdown format
-- Use this to get `old_str` values for `update_content`
+## OAuth / mcp-oauth-provider (verified 2026-03-26)
+
+- **Fixed session ID required.** `createOAuthProvider` generates a random `sessionId` by default. Without a fixed ID, each process run generates a new session and can never find previously stored tokens → triggers OAuth browser flow every time. Fix: pass `sessionId: 'pan'` in the config.
+- **`client_info.json` is never written to disk.** Dynamic client registration appears to complete in-memory only during the first auth flow. Tokens ARE persisted correctly. Consequence: if tokens expire and re-auth is needed, the second `auth()` call (with `authorizationCode`) will throw "Existing OAuth client information is required". For the 3-day deadline, tokens won't expire — acceptable risk.
+- **Token storage path:** `~/.pan/oauth/` — files named `tokens_pan.json`, `verifier_pan.json`
+- **Linux browser open:** `mcp-oauth-provider` uses `open` (macOS) — override `redirectToAuthorization` in a subclass to use `xdg-open` instead.
 
 ---
 
