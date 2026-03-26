@@ -17,22 +17,21 @@ console.log('Connected to Notion MCP.\n');
 
 // Test 1: fetch a known page
 console.log(`Fetching page ${WASTE_LAND_PAGE_ID}...`);
-const pageContent = await fetchPage(client, WASTE_LAND_PAGE_ID);
-console.log(`notion-fetch OK — ${pageContent.length} chars`);
-console.log('--- first 500 chars ---');
-console.log(pageContent.slice(0, 500));
+const page = await fetchPage(client, WASTE_LAND_PAGE_ID);
+console.log(`notion-fetch OK — title: "${page.title}", ${page.text.length} chars`);
+console.log('--- first 500 chars of text ---');
+console.log(page.text.slice(0, 500));
 console.log('---\n');
 
 // Test 2: search the commonplace book
 console.log('Searching commonplace book for "water"...');
-const searchResults = await searchNotion(client, 'water', {
+const hits = await searchNotion(client, 'water', {
   dataSourceUrl: COMMONPLACE_DATA_SOURCE,
   pageSize: 5,
 });
-console.log(`notion-search OK — ${searchResults.length} chars`);
-console.log('--- first 500 chars ---');
-console.log(searchResults.slice(0, 500));
-console.log('---\n');
+console.log(`notion-search OK — ${hits.length} results`);
+hits.forEach((h, i) => console.log(`  [${i + 1}] ${h.title} (id: ${h.id})`));
+console.log('');
 
 console.log('1b validation complete.');
 await client.close();

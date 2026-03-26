@@ -8,12 +8,13 @@ const CONFIG_DIR = join(homedir(), '.pan');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 
 export function readConfig(): Config {
+  let raw: unknown;
   try {
-    const raw = JSON.parse(readFileSync(CONFIG_PATH, 'utf-8'));
-    return validateConfig(raw);
+    raw = JSON.parse(readFileSync(CONFIG_PATH, 'utf-8'));
   } catch {
     throw new Error(`Config not found. Run \`pan init\` first.`);
   }
+  return validateConfig(raw);
 }
 
 export function writeConfig(config: Config): void {
