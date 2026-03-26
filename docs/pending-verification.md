@@ -31,8 +31,18 @@ These values are appropriate for a test script and do not need to be removed —
 
 ---
 
-## Sub-phase 2b — Write-back test (not yet written)
+## Sub-phase 2b — Write-back (`scripts/test-2b.ts`)
 
-The 2b test script will use a **hardcoded mock toggle string** in place of Claude's output to verify the Notion write-back works independently of the API key.
+**Automated tests: passed (2026-03-26).** All 7 assertions passed:
+- Blank page throws the expected error
+- First write on content page returns `'appended'`
+- Second write on same page returns `'replaced'`
+- V1 toggle text absent after replace, V2 present, exactly 1 toggle in page
 
-**To clean up after 2a is verified:** The mock toggle in the 2b test script can be replaced with a real `findConnections` call, or left as-is since it's test-only code.
+**Remaining manual check:** confirm the toggle renders correctly as a closed toggle in Notion's UI. The test script creates scratch pages and prints their URL — open the content page and verify.
+
+**To re-run at any time:**
+```
+bun scripts/test-2b.ts
+```
+(No args — the script creates its own scratch pages under a new workspace-level parent.)

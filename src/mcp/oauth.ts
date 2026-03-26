@@ -32,17 +32,7 @@ export function createProvider(): PanOAuthProvider {
   });
 }
 
-export async function ensureAuthenticated(provider: PanOAuthProvider): Promise<void> {
-  const existingTokens = await provider.getStoredTokens();
-
-  if (existingTokens?.access_token) {
-    // Valid tokens on disk — the transport calls provider.tokens() automatically,
-    // which handles refresh. No need to call auth() here.
-    return;
-  }
-
-  // No tokens — start callback server before auth() opens the browser,
-  // then do the full OAuth code-exchange flow.
+async function runBrowserFlow(provider: PanOAuthProvider): Promise<void> {
   const server = await createCallbackServer({ port: CALLBACK_PORT });
   try {
     const result = await auth(provider, { serverUrl: NOTION_MCP_URL });
@@ -55,4 +45,28 @@ export async function ensureAuthenticated(provider: PanOAuthProvider): Promise<v
   } finally {
     await server.stop();
   }
+}
+
+export async function ensureAuthenticated(provider: PanOAuthProvider): Promise<void> {
+  const existingTokens = await provider.getStoredTokens();
+
+  if (existingTokens?.access_token) {
+    // expires_in is remaining seconds until expiry (converted from the stored
+    // expires_at by mcp-oauth-provider on retrieval). Require at least 60s
+    // remaining to avoid using a token that expires mid-request.
+    const stillValid = !existingTokens.expires_in ||
+      existingTokens.expires_in > 60;
+
+    if (stillValid) return;
+
+    // Token expired — attempt silent refresh using stored refresh_token +
+    // client_info.json (both persisted by mcp-oauth-provider's FileStorage).
+    // auth() handles refresh internally; returns 'REDIRECT' only if refresh
+    // fails (e.g. token revoked by user in Notion settings).
+    const refreshResult = await auth(provider, { serverUrl: NOTION_MCP_URL });
+    if (refreshResult !== 'REDIRECT') return; // refreshed silently
+  }
+
+  // No tokens, or silent refresh failed — full browser OAuth flow.
+  await runBrowserFlow(provider);
 }

@@ -55,12 +55,13 @@ Commands: `update_properties`, `update_content`, `replace_content`, `apply_templ
 
 **There is NO `append_content` command.**
 
-For `update_content` (verified working, sub-phase 1c):
+For `update_content` (verified working, sub-phase 1c + 2b):
 - Takes `content_updates: [{old_str, new_str, replace_all_matches?}]`
 - `old_str` must exactly match existing page content
 - Schema marks both `properties` and `content_updates` as required — pass `properties: {}` when using `update_content` ✅ confirmed
 - Anchor strategy confirmed: fetch page → use last non-empty lines as `old_str` → `new_str = old_str + "\n\n" + toggle` ✅
 - Toggle replace confirmed: use the full existing toggle as `old_str` ✅
+- **`page_id` must be a UUID (with or without dashes), not a full Notion URL** — passing a URL causes a `validation_error` ✅ confirmed (sub-phase 2b). Use `extractPageId()` in `client.ts` to strip URLs before calling this tool.
 
 ### notion-fetch — key details (verified 2026-03-26)
 
@@ -70,6 +71,7 @@ For `update_content` (verified working, sub-phase 1c):
   - Extract page content from the `text` field
   - The `text` field contains Notion-flavored Markdown wrapped in a `<page>` XML tag
 - Use this to get `old_str` values for `update_content` — use the `text` field
+- **Blank pages:** the `text` field contains `<blank-page>This page is blank and has no content.</blank-page>` — there is no real content to anchor to. `writeToggle` detects this tag and throws rather than attempting a write. ✅ confirmed (sub-phase 2b)
 
 ### notion-search — key details (verified 2026-03-26)
 
@@ -88,7 +90,7 @@ For `update_content` (verified working, sub-phase 1c):
 ## OAuth / mcp-oauth-provider (verified 2026-03-26)
 
 - **Fixed session ID required.** `createOAuthProvider` generates a random `sessionId` by default. Without a fixed ID, each process run generates a new session and can never find previously stored tokens → triggers OAuth browser flow every time. Fix: pass `sessionId: 'pan'` in the config.
-- **`client_info.json` is never written to disk.** Dynamic client registration appears to complete in-memory only during the first auth flow. Tokens ARE persisted correctly. Consequence: if tokens expire and re-auth is needed, the second `auth()` call (with `authorizationCode`) will throw "Existing OAuth client information is required". For the 3-day deadline, tokens won't expire — acceptable risk.
+- **`client_info.json` IS written to disk** by `FileStorage` at `~/.pan/oauth/client_info.json`. Earlier note claiming otherwise was wrong. This means silent token refresh works: when an access token expires, `auth()` uses the stored refresh token + client info to get a new one without a browser prompt. `ensureAuthenticated` now checks `expires_in` (remaining seconds, as returned by `getStoredTokens()`) and attempts silent refresh before falling back to the browser flow.
 - **Token storage path:** `~/.pan/oauth/` — files named `tokens_pan.json`, `verifier_pan.json`
 - **Linux browser open:** `mcp-oauth-provider` uses `open` (macOS) — override `redirectToAuthorization` in a subclass to use `xdg-open` instead.
 
