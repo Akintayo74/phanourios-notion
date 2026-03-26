@@ -15,21 +15,27 @@ ReadMcpResourceTool
   uri: "notion://docs/enhanced-markdown-spec"
 ```
 
-**Key findings (verified 2026-03-26):**
+**Key findings (verified 2026-03-26, write tests confirmed sub-phase 1c):**
 
-Toggle syntax:
+Toggle syntax (verified working via write + fetch round-trip):
 ```
 <details>
-<summary>Rich text</summary>
-	Children (MUST be tab-indented or they won't be inside the toggle)
+<summary>**Summary text**</summary>
+	Children (MUST be tab-indented — one tab per nesting level)
+	<details>
+	<summary>**Nested sub-toggle**</summary>
+		Double-tab indented content
+	</details>
 </details>
 ```
 
-Bold: `**bold**` (not `<strong>`)
+Bold: `**bold**` (not `<strong>`) — works in summary text and body text.
 
-Page mentions: `<mention-page url="URL">Title</mention-page>`
+Page mentions: `<mention-page url="URL">Title</mention-page>` when writing → stored/fetched back as `<mention-page url="URL"/>` (self-closing, title resolved dynamically from the referenced page). **Only works with real Notion URLs** — invalid URLs fall back to a regular markdown hyperlink `[Title](url)`.
 
 Empty lines: stripped unless `<empty-block/>` is used. Notion handles block spacing automatically.
+
+Curly braces `{}` in page content are escaped as `\{\}` in `notion-fetch` output. Use the escaped form when building `old_str` values for `update_content` if the fetched content contains `{}`.
 
 ---
 
@@ -49,23 +55,42 @@ Commands: `update_properties`, `update_content`, `replace_content`, `apply_templ
 
 **There is NO `append_content` command.**
 
-For `update_content`:
+For `update_content` (verified working, sub-phase 1c):
 - Takes `content_updates: [{old_str, new_str, replace_all_matches?}]`
 - `old_str` must exactly match existing page content
-- Schema marks both `properties` and `content_updates` as required — pass `properties: {}` when using `update_content`
+- Schema marks both `properties` and `content_updates` as required — pass `properties: {}` when using `update_content` ✅ confirmed
+- Anchor strategy confirmed: fetch page → use last non-empty lines as `old_str` → `new_str = old_str + "\n\n" + toggle` ✅
+- Toggle replace confirmed: use the full existing toggle as `old_str` ✅
 
-### notion-search — key details
+### notion-fetch — key details (verified 2026-03-26)
 
-- `filters` is **required** (pass `filters: {}` if no filters needed)
+- **Parameter name is `id`** (not `url`) — passing `url` causes a validation error
+- Accepts Notion URLs, raw UUIDs, or data source URLs (`collection://...`)
+- **Returns JSON, not raw markdown.** Shape: `{"metadata":{"type":"page"},"title":"...","url":"...","text":"<page markdown here>"}`
+  - Extract page content from the `text` field
+  - The `text` field contains Notion-flavored Markdown wrapped in a `<page>` XML tag
+- Use this to get `old_str` values for `update_content` — use the `text` field
+
+### notion-search — key details (verified 2026-03-26)
+
+- **Parameter name is `query`** (required), **`filters` is required** (pass `filters: {}` if no filters)
 - Use `data_source_url` (format: `collection://UUID`) for database-scoped search
 - `page_size` default 10, max 25
 - `max_highlight_length` default 200, set to 0 to omit
+- **Returns JSON.** Shape: `{"results":[{...}], "type":"workspace_search"}`
+  - `type` is always `"workspace_search"` regardless of whether `data_source_url` is used — this is just a label, not confirmation of scope
+  - Each result: `{"id":"<uuid-no-dashes>","title":"...","url":"<uuid-no-dashes>","type":"page","highlight":"...","timestamp":"..."}`
+  - **`url` field is a UUID without dashes**, not a full Notion URL — format as `https://www.notion.so/{url}` or pass directly to `notion-fetch` via `id`
+- `data_source_url` scoping: passes the collection URL to restrict to a database. Whether it actually scopes in workspace_search mode is unconfirmed — test further in sub-phase 2b.
 
-### notion-fetch — key details
+---
 
-- Accepts Notion URLs, raw UUIDs, or data source URLs (`collection://...`)
-- Returns page content in Notion-flavored Markdown format
-- Use this to get `old_str` values for `update_content`
+## OAuth / mcp-oauth-provider (verified 2026-03-26)
+
+- **Fixed session ID required.** `createOAuthProvider` generates a random `sessionId` by default. Without a fixed ID, each process run generates a new session and can never find previously stored tokens → triggers OAuth browser flow every time. Fix: pass `sessionId: 'pan'` in the config.
+- **`client_info.json` is never written to disk.** Dynamic client registration appears to complete in-memory only during the first auth flow. Tokens ARE persisted correctly. Consequence: if tokens expire and re-auth is needed, the second `auth()` call (with `authorizationCode`) will throw "Existing OAuth client information is required". For the 3-day deadline, tokens won't expire — acceptable risk.
+- **Token storage path:** `~/.pan/oauth/` — files named `tokens_pan.json`, `verifier_pan.json`
+- **Linux browser open:** `mcp-oauth-provider` uses `open` (macOS) — override `redirectToAuthorization` in a subclass to use `xdg-open` instead.
 
 ---
 

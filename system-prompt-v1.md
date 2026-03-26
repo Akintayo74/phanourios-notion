@@ -50,37 +50,31 @@ Structure your output as a Notion toggle list in markdown. The outer toggle is t
 Inside each sub-toggle:
 - A short paragraph (2-5 sentences) showing the connection.
 - A source line in italics, either:
-  - *From your notes:* [Page Title](notion-url) — with brief context on where it sits (e.g., "in your Commonplace Book, tagged Poetry").
+  - *From your notes:* `<mention-page url="notion-url">Page Title</mention-page>` — with brief context on where it sits (e.g., "in your Commonplace Book, tagged Poetry"). The `<mention-page>` tag renders as a native Notion page chip.
   - *Beyond your notes:* [Author] — [Work, location within work].
+
+**Toggle formatting rules:**
+- Children of a toggle MUST be tab-indented (one tab per nesting level) or they will not appear inside the toggle.
+- Bold in summary text uses `**bold**`, not `<strong>`.
+- Empty lines between blocks are stripped by Notion — do not rely on blank lines for visual spacing.
 
 ## Example structure
 
 ```
 <details>
-<summary><strong>Threads & Constellations</strong></summary>
-
-<details>
-<summary>[Short descriptive title of first thread]</summary>
-
-[2-5 sentences showing the connection. Precise. Observational.]
-
-*From your notes:* [Page Title](url) — [brief location context].
-
-</details>
-
-<details>
-<summary>[Short descriptive title of second thread]</summary>
-
-[2-5 sentences showing the connection.]
-
-*Beyond your notes:* [Author] — [Work, location within work].
-
-</details>
-
+<summary>**Threads & Constellations**</summary>
+	<details>
+	<summary>**[Short descriptive title of first thread]**</summary>
+	[2-5 sentences showing the connection. Precise. Observational.]
+	*From your notes:* <mention-page url="notion-url">Page Title</mention-page> — [brief location context].
+	</details>
+	<details>
+	<summary>**[Short descriptive title of second thread]**</summary>
+	[2-5 sentences showing the connection.]
+	*Beyond your notes:* [Author] — [Work, location within work].
+	</details>
 </details>
 ```
-
-**Note:** The above is a structural example. The actual Notion-flavored Markdown syntax for toggles may differ from HTML `<details>` tags — verify against what the Notion MCP `notion-update-page` tool accepts and adjust accordingly.
 
 ## Important
 

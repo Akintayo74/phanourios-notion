@@ -13,7 +13,7 @@ Phanourios (`pan`) is a CLI tool for the DEV.to / Notion MCP Challenge (deadline
 | Issue | v1 | v2 |
 |---|---|---|
 | Timeline | 5-day plan | 3 build days + 1 ship day |
-| Package manager | npm (conflicted with global bun setting) | npm, overridden by project CLAUDE.md |
+| Package manager | npm (overridden by project CLAUDE.md) | bun — `mcp-oauth-provider` is Bun-only; Node.js not viable |
 | Append strategy | `update_content` search-and-replace on last chunk | `update_content` always — anchor on last chunk for first write, old toggle for replace (see Write Strategy section) |
 | Token budget | ~8-10K, vague | 10 results max, 300 words each, ~8K tokens |
 | Query generation model | Sonnet 4.6 | Haiku 4.5 (extraction task, overkill to use Sonnet) |
@@ -28,13 +28,13 @@ Phanourios (`pan`) is a CLI tool for the DEV.to / Notion MCP Challenge (deadline
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Runtime | Node.js | MCP SDK compatibility — no runtime risk on 3-day deadline |
-| Package manager | npm | Overridden via project CLAUDE.md to avoid bun/npm conflict |
+| Runtime | Bun | `mcp-oauth-provider` is Bun-only (uses `Bun.serve()`, `Bun.file()`) — Node.js not viable |
+| Package manager | bun | Global preference restored; project CLAUDE.md updated to reflect Bun requirement |
 | Language | TypeScript | Three APIs with types (MCP, Anthropic, Notion) |
 | Structure | Feature modules | Clear domain boundaries (mcp/, ai/, cli/, config/) |
 | CLI UX | @clack/prompts | Beautiful defaults, handles prompts + spinners |
 | CLI args | commander | Battle-tested, auto --help |
-| Dev loop | tsx (dev), tsup (build) | Instant TypeScript execution |
+| Dev loop | bun run (dev), tsup (build) | Bun runs TypeScript natively; tsx no longer needed |
 | Testing | Integration test script + --dry-run | --dry-run for Day 3 iteration speed; smoke test for submission |
 | Query generation model | claude-haiku-4-5-20251001 | Simple extraction task — Haiku is fast, cheap, sufficient |
 | Connection finding model | claude-sonnet-4-6 (default) | System prompt tuned for it; Opus 4.6 via --model flag |
