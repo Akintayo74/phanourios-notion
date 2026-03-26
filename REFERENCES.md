@@ -15,21 +15,27 @@ ReadMcpResourceTool
   uri: "notion://docs/enhanced-markdown-spec"
 ```
 
-**Key findings (verified 2026-03-26):**
+**Key findings (verified 2026-03-26, write tests confirmed sub-phase 1c):**
 
-Toggle syntax:
+Toggle syntax (verified working via write + fetch round-trip):
 ```
 <details>
-<summary>Rich text</summary>
-	Children (MUST be tab-indented or they won't be inside the toggle)
+<summary>**Summary text**</summary>
+	Children (MUST be tab-indented — one tab per nesting level)
+	<details>
+	<summary>**Nested sub-toggle**</summary>
+		Double-tab indented content
+	</details>
 </details>
 ```
 
-Bold: `**bold**` (not `<strong>`)
+Bold: `**bold**` (not `<strong>`) — works in summary text and body text.
 
-Page mentions: `<mention-page url="URL">Title</mention-page>`
+Page mentions: `<mention-page url="URL">Title</mention-page>` when writing → stored/fetched back as `<mention-page url="URL"/>` (self-closing, title resolved dynamically from the referenced page). **Only works with real Notion URLs** — invalid URLs fall back to a regular markdown hyperlink `[Title](url)`.
 
 Empty lines: stripped unless `<empty-block/>` is used. Notion handles block spacing automatically.
+
+Curly braces `{}` in page content are escaped as `\{\}` in `notion-fetch` output. Use the escaped form when building `old_str` values for `update_content` if the fetched content contains `{}`.
 
 ---
 
@@ -49,10 +55,12 @@ Commands: `update_properties`, `update_content`, `replace_content`, `apply_templ
 
 **There is NO `append_content` command.**
 
-For `update_content`:
+For `update_content` (verified working, sub-phase 1c):
 - Takes `content_updates: [{old_str, new_str, replace_all_matches?}]`
 - `old_str` must exactly match existing page content
-- Schema marks both `properties` and `content_updates` as required — pass `properties: {}` when using `update_content`
+- Schema marks both `properties` and `content_updates` as required — pass `properties: {}` when using `update_content` ✅ confirmed
+- Anchor strategy confirmed: fetch page → use last non-empty lines as `old_str` → `new_str = old_str + "\n\n" + toggle` ✅
+- Toggle replace confirmed: use the full existing toggle as `old_str` ✅
 
 ### notion-fetch — key details (verified 2026-03-26)
 
