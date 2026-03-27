@@ -32,16 +32,18 @@ Before producing output, apply these checks:
 - **Do not interpret the user's creative choices.** Never explain what the user "is doing" in their writing, what they "turned inward," what their piece "dramatises," or what their replacement of one word with another "means." The user wrote it. They know what they meant, or they're still discovering it. Either way, that's their territory.
 - **Do not give advice.** Never suggest that the user should add something to their commonplace book, read a particular text, or reconsider a choice. If a connection comes from outside their notes, name the source fully and leave it there. No "consider adding" or "you might want to explore."
 - **Do not rank or evaluate.** Never say a connection is "the most important" or "the strongest." Present them and let the user decide what matters.
-- **Do not be comprehensive for the sake of it.** If you find three strong connections and two weak ones, present three. Silence is better than noise.
+- **Do not be comprehensive for the sake of it.** Aim for 3–4 connections. Hard cap: no more than 5 total. If you find three strong and two weak, present three. Silence is better than noise.
 
 ## Connections from the wider tradition
 
-When you find a connection from outside the user's notes, it must meet one of these criteria:
+**Prefer connections from the user's notes.** When a connection from your own knowledge competes with one from the notes, the notes win. Connections from the wider tradition are secondary — present them only when the notes don't cover the ground, and limit them to **2 at most** per analysis.
+
+When you do draw from outside the user's notes, the connection must meet one of these criteria:
 
 - **Strong textual parallel**: shared structure, shared imagery, near-direct echoes in phrasing. The connection should be specific enough that quoting both fragments side by side makes the echo self-evident.
 - **Etymological or historical discovery**: something about the user's own word choices that reveals a hidden layer — a root, an origin, a historical context they may not have been aware of.
 
-What does NOT qualify: vague thematic associations ("this theme also appears in [famous work]"), loose genre connections, or connections that require three steps of abstraction to justify.
+What does NOT qualify: vague thematic associations ("this theme also appears in [famous work]"), loose genre connections, connections that require three steps of abstraction to justify, or observations about the internal logic of the text that don't actually connect to an external source.
 
 ## Tone
 
@@ -105,9 +107,15 @@ Return only the queries, one per line. No numbering, no explanation, no extra te
 
 const SEED_TEXT_LIMIT = 6000; // chars — keeps input tokens reasonable
 const HIGHLIGHT_LIMIT = 500;  // chars per search result (API max for max_highlight_length)
+const TOGGLE_MARKER = '<details>\n<summary>**Threads & Constellations**</summary>';
 
 function stripPageTag(text: string): string {
-  return text.replace(/^<page>\n?/, '').replace(/\n?<\/page>$/, '').trim();
+  const start = text.indexOf('<content>\n');
+  const end = text.lastIndexOf('\n</content>');
+  if (start !== -1 && end !== -1 && end > start) {
+    return text.slice(start + '<content>\n'.length, end).trim();
+  }
+  return text.replace(/^<page[^>]*>\n?/, '').replace(/\n?<\/page>$/, '').trim();
 }
 
 export function buildQueriesUserMessage(pageText: string): string {
@@ -119,7 +127,10 @@ export function buildQueriesUserMessage(pageText: string): string {
 }
 
 export function buildConnectionsUserMessage(page: PageContent, results: SearchResult[]): string {
-  const seedText = stripPageTag(page.text);
+  const stripped = stripPageTag(page.text);
+  // Strip any existing toggle so Claude doesn't see its own prior output on replace runs
+  const toggleStart = stripped.indexOf(TOGGLE_MARKER);
+  const seedText = toggleStart !== -1 ? stripped.slice(0, toggleStart).trimEnd() : stripped;
   const capped = seedText.length > SEED_TEXT_LIMIT
     ? seedText.slice(0, SEED_TEXT_LIMIT) + '…'
     : seedText;

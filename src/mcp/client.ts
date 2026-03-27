@@ -6,7 +6,15 @@ import type { PageContent, SearchHit } from '../types.js';
 const TOGGLE_MARKER = '<details>\n<summary>**Threads & Constellations**</summary>';
 
 function stripPageTag(text: string): string {
-  return text.replace(/^<page>\n?/, '').replace(/\n?<\/page>$/, '');
+  // notion-fetch wraps page content in <content>...</content> inside a <page> wrapper
+  // with a preamble ("Here is the result of..."). Extract just the content block.
+  const start = text.indexOf('<content>\n');
+  const end = text.lastIndexOf('\n</content>');
+  if (start !== -1 && end !== -1 && end > start) {
+    return text.slice(start + '<content>\n'.length, end);
+  }
+  // Fallback for unexpected formats
+  return text.replace(/^<page[^>]*>\n?/, '').replace(/\n?<\/page>$/, '');
 }
 
 /**
