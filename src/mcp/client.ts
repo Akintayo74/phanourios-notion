@@ -112,6 +112,7 @@ export async function searchNotion(
     query,
     filters: {},
     page_size: options.pageSize ?? 10,
+    max_highlight_length: 500,
   };
   if (options.dataSourceUrl) args.data_source_url = options.dataSourceUrl;
 

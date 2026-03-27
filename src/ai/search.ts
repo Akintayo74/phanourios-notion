@@ -16,7 +16,7 @@ export async function collectSearchResults(
   maxResults = 8,
 ): Promise<SearchResult[]> {
   const seen = new Set<string>();
-  const hits: Array<{ id: string; title: string; url: string }> = [];
+  const hits: Array<{ id: string; title: string; url: string; highlight: string }> = [];
 
   const searchOptions =
     config.searchMode === 'database'
@@ -39,7 +39,7 @@ export async function collectSearchResults(
       if (hits.length >= maxResults) break;
       if (seen.has(hit.id)) continue;
       seen.add(hit.id);
-      hits.push({ id: hit.id, title: hit.title, url: hit.url });
+      hits.push({ id: hit.id, title: hit.title, url: hit.url, highlight: hit.highlight });
     }
   }
 
@@ -47,11 +47,12 @@ export async function collectSearchResults(
   const settled = await Promise.allSettled(
     hits.map(async (hit) => {
       const page = await fetchPage(mcpClient, hit.id);
+      const isBlankBody = !page.text || page.text.includes('<blank-page>');
       return {
         id: hit.id,
         title: hit.title,
         url: hit.url,
-        content: page.text,
+        content: isBlankBody ? hit.highlight : page.text,
       } satisfies SearchResult;
     }),
   );

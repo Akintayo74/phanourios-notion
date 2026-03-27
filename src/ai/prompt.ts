@@ -88,13 +88,14 @@ The user's original writing must never be altered. Your output is appended below
 // System prompt for query generation (lightweight call)
 // ---------------------------------------------------------------------------
 
-export const QUERY_GENERATION_SYSTEM = `You are a search query generator. Given a piece of writing, produce 3 to 5 search queries that will find related entries in a commonplace book — a personal collection of quotes, lyrics, ideas, and passages.
+export const QUERY_GENERATION_SYSTEM = `You are a search query generator. Given a piece of writing, produce 3 to 5 search queries that will find related entries across a Notion workspace — notes, quotes, drafts, journal entries, and passages collected anywhere.
+
+The search engine does basic text matching, not semantic matching. Every query must be a short keyword or phrase (1–3 words) that would literally appear in a matching entry. Do not write descriptive summaries of themes — write the words themselves.
 
 Each query should probe a different angle:
-- Proper names (characters, authors, people, places) mentioned in the text
-- Core themes or emotional territory
-- Specific images, phrases, or unusual word choices that might echo elsewhere
-- Any cultural, literary, or historical references
+- Proper names: authors, characters, people, or places in or closely associated with the text (e.g. "Whitman", "Lyra", "Eliot")
+- Single concepts: one or two words for a core theme that would appear verbatim in notes (e.g. "freedom", "grief", "time")
+- Distinctive words or short phrases from the text that might echo in other entries
 
 Return only the queries, one per line. No numbering, no explanation, no extra text.`;
 
@@ -103,7 +104,7 @@ Return only the queries, one per line. No numbering, no explanation, no extra te
 // ---------------------------------------------------------------------------
 
 const SEED_TEXT_LIMIT = 6000; // chars — keeps input tokens reasonable
-const HIGHLIGHT_LIMIT = 600;  // chars per search result
+const HIGHLIGHT_LIMIT = 500;  // chars per search result (API max for max_highlight_length)
 
 function stripPageTag(text: string): string {
   return text.replace(/^<page>\n?/, '').replace(/\n?<\/page>$/, '').trim();
