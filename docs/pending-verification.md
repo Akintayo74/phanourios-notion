@@ -31,6 +31,20 @@ These values are appropriate for a test script and do not need to be removed —
 
 ---
 
+## Sub-phase 2c — Empty search result content (fix in 3a)
+
+**Discovered:** 2026-03-27, first end-to-end dry-run.
+
+**Problem:** `collectSearchResults` fetches the full body text of each matched page via `notion-fetch`. For database entries in the commonplace book, content lives in *properties* (title, quote text, tags), not in Notion body blocks. `notion-fetch` returns blank/empty body text for these pages, so Claude receives titles and URLs but no actual content to connect against.
+
+**Evidence:** 8 search results returned, Claude reported "no content was returned for any of them." Output still produced 4 connections — all from wider tradition knowledge, none from the commonplace book notes.
+
+**Fix (sub-phase 3a):** In `ai/search.ts` → `collectSearchResults`, preserve the `highlight` field from each `SearchHit` (already returned by `notion-search`). When a fetched page's body text is blank or contains only `<blank-page>`, fall back to the search highlight as the `content` field in `SearchResult`. The `highlight` is a text snippet of matching content extracted by the search engine itself — it will contain the relevant fragment even when the body is empty.
+
+**File to change:** `src/ai/search.ts` — `collectSearchResults` function. Also update `src/types.ts` `SearchResult` if needed.
+
+---
+
 ## Sub-phase 2b — Write-back (`scripts/test-2b.ts`)
 
 **Automated tests: passed (2026-03-26).** All 7 assertions passed:
