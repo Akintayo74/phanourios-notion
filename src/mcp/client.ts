@@ -71,9 +71,21 @@ function getAnchor(content: string, n: number): string {
 }
 
 async function _connect(provider: ReturnType<typeof createProvider>): Promise<Client> {
+  // Get a fresh token and pass it as a static header rather than giving the
+  // transport the full authProvider.  This prevents the transport from
+  // independently calling auth() → redirectToAuthorization() on a 401,
+  // which would open a browser tab with no callback server to capture it.
+  // ensureAuthenticated() is the single owner of the browser-based auth flow.
+  const tokens = await provider.tokens();
+  if (!tokens?.access_token) throw new Error('Unauthorized');
+
   const transport = new StreamableHTTPClientTransport(
     new URL(NOTION_MCP_URL),
-    { authProvider: provider }
+    {
+      requestInit: {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      },
+    }
   );
   const client = new Client(
     { name: 'phanourios', version: '1.0.0' },

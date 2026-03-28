@@ -54,19 +54,18 @@ export async function ensureAuthenticated(provider: PanOAuthProvider): Promise<v
     // expires_in is remaining seconds until expiry (converted from the stored
     // expires_at by mcp-oauth-provider on retrieval). Require at least 60s
     // remaining to avoid using a token that expires mid-request.
-    const stillValid = !existingTokens.expires_in ||
+    // Use == null (covers undefined and null) rather than falsy check,
+    // because expires_in of 0 means "just expired" and !0 === true would
+    // incorrectly treat it as "no expiry info".
+    const stillValid = existingTokens.expires_in == null ||
       existingTokens.expires_in > 60;
 
     if (stillValid) return;
-
-    // Token expired — attempt silent refresh using stored refresh_token +
-    // client_info.json (both persisted by mcp-oauth-provider's FileStorage).
-    // auth() handles refresh internally; returns 'REDIRECT' only if refresh
-    // fails (e.g. token revoked by user in Notion settings).
-    const refreshResult = await auth(provider, { serverUrl: NOTION_MCP_URL });
-    if (refreshResult !== 'REDIRECT') return; // refreshed silently
   }
 
-  // No tokens, or silent refresh failed — full browser OAuth flow.
+  // No token, or token expired. runBrowserFlow starts the callback server
+  // before calling auth(), so the callback is always captured. auth() attempts
+  // silent refresh via refresh_token first; only falls back to the browser
+  // flow (opening a tab) if refresh fails or is unavailable.
   await runBrowserFlow(provider);
 }
