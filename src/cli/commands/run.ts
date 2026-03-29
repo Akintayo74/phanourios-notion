@@ -1,9 +1,10 @@
-import { confirm, isCancel } from '@clack/prompts';
 import { createMcpClient, fetchPage, writeToggle } from '../../mcp/client.js';
 import { generateSearchQueries, findConnections } from '../../ai/client.js';
 import { collectSearchResults } from '../../ai/search.js';
 import { readConfig } from '../../config/store.js';
 import { DEFAULT_MODEL } from '../../config/schema.js';
+import { withSpinner, intro, outro, note, log, confirm, isCancel } from '../ui.js';
+import type { Config } from '../../types.js';
 
 const QUERY_MODEL = 'claude-haiku-4-5-20251001';
 const TOGGLE_MARKER = '<details>\n<summary>**Threads & Constellations**</summary>';
@@ -14,82 +15,128 @@ export interface RunOptions {
   replace?: boolean;
 }
 
-export async function runCommand(url: string, options: RunOptions): Promise<void> {
-  // 1. Load config
-  const config = readConfig();
+async function spinnerStep<T>(
+  startMsg: string,
+  fn: () => Promise<T>,
+  stopMsg: string | ((r: T) => string),
+): Promise<T> {
+  try {
+    return await withSpinner(startMsg, fn, stopMsg);
+  } catch {
+    // withSpinner already called s.error() with the message
+    outro('Exited.');
+    process.exit(1);
+  }
+}
 
-  // 2. Check API key
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY environment variable is not set.');
+export async function runCommand(url: string, options: RunOptions): Promise<void> {
+  intro('Phanourios');
+
+  // Pre-flight: config
+  let config: Config;
+  try {
+    config = readConfig();
+  } catch (err) {
+    log.error(err instanceof Error ? err.message : String(err));
+    outro('Exited.');
+    process.exit(1);
   }
 
-  const model = options.model ?? config.model ?? DEFAULT_MODEL;
+  // Pre-flight: API key
+  if (!process.env.ANTHROPIC_API_KEY) {
+    log.error('ANTHROPIC_API_KEY environment variable is not set.');
+    outro('Exited.');
+    process.exit(1);
+  }
 
-  // 3. Connect to Notion MCP
-  console.log('Connecting to Notion...');
-  const mcpClient = await createMcpClient();
+  const model = options.model ?? config!.model ?? DEFAULT_MODEL;
 
-  try {
-    // 4. Read target page
-    console.log('Reading page...');
-    const page = await fetchPage(mcpClient, url);
-    console.log(`Page: "${page.title}"`);
+  // Connect
+  const mcpClient = await spinnerStep(
+    'Connecting to Notion...',
+    () => createMcpClient(),
+    'Connected',
+  );
 
-    // 5. Detect existing toggle — warn/ask/replace
-    const hasExistingToggle = page.text.includes(TOGGLE_MARKER);
-    if (hasExistingToggle && !options.dryRun) {
-      if (options.replace) {
-        console.log('Existing toggle found — replacing.');
-      } else {
-        const shouldReplace = await confirm({
-          message: '"Threads & Constellations" already exists on this page. Replace it?',
-        });
-        if (isCancel(shouldReplace) || !shouldReplace) {
-          console.log('Skipped.');
-          return;
-        }
+  // Read page
+  const page = await spinnerStep(
+    'Reading page...',
+    () => fetchPage(mcpClient, url),
+    (p) => `"${p.title}"`,
+  );
+
+  // Detect existing toggle
+  const hasExistingToggle = page.text.includes(TOGGLE_MARKER);
+  if (hasExistingToggle && !options.dryRun) {
+    if (options.replace) {
+      log.info('Existing toggle found — replacing.');
+    } else {
+      const shouldReplace = await confirm({
+        message: '"Threads & Constellations" already exists on this page. Replace it?',
+      });
+      if (isCancel(shouldReplace) || !shouldReplace) {
+        await mcpClient.close();
+        outro('Skipped.');
+        return;
       }
     }
-
-    // 6. Generate search queries via Haiku
-    console.log('Generating search queries...');
-    const queries = await generateSearchQueries(page.text, QUERY_MODEL);
-    console.log(`Queries: ${queries.join(' | ')}`);
-
-    // 7. Search commonplace book + fetch page content
-    console.log(`Searching notes (${config.searchMode} mode)...`);
-    const results = await collectSearchResults(mcpClient, queries, config);
-    console.log(`Found ${results.length} relevant note(s).`);
-
-    // 8. Find connections via Sonnet
-    console.log(`Finding connections (${model})...`);
-    const toggle = await findConnections(page, results, model);
-
-    // 9. Dry-run: print and exit
-    if (options.dryRun) {
-      console.log('\n--- Dry run output ---\n');
-      console.log(toggle);
-      console.log('\n--- End dry run ---');
-      return;
-    }
-
-    // 10. Write toggle to page
-    console.log('Writing to Notion...');
-    const action = await writeToggle(mcpClient, url, toggle);
-
-    // 11. Post-write verification: re-fetch and confirm toggle is present
-    const pageAfter = await fetchPage(mcpClient, url);
-    if (!pageAfter.text.includes(TOGGLE_MARKER)) {
-      throw new Error('Post-write verification failed: toggle not found in page after write.');
-    }
-
-    // 12. Success
-    const pageUrl = page.url.startsWith('http')
-      ? page.url
-      : `https://www.notion.so/${page.url}`;
-    console.log(`\nDone! Toggle ${action}:`);
-    console.log(pageUrl);
-  } finally {
-    await mcpClient.close();
   }
+
+  // Generate search queries
+  const queries = await spinnerStep(
+    'Generating search queries...',
+    () => generateSearchQueries(page.text, QUERY_MODEL),
+    'Queries generated',
+  );
+  log.step(queries.join(' · '));
+
+  // Search notes
+  const results = await spinnerStep(
+    'Searching your notes...',
+    () => collectSearchResults(mcpClient, queries, config!),
+    (r) => `${r.length} note${r.length === 1 ? '' : 's'} found`,
+  );
+
+  // Find connections
+  const toggle = await spinnerStep(
+    'Finding connections — this takes a moment...',
+    () => findConnections(page, results, model),
+    'Connections found',
+  );
+
+  // Dry-run path
+  if (options.dryRun) {
+    log.message(toggle);
+    await mcpClient.close();
+    outro('Dry run complete.');
+    return;
+  }
+
+  // Write toggle
+  const action = await spinnerStep(
+    'Writing to Notion...',
+    () => writeToggle(mcpClient, url, toggle),
+    (a) => `Toggle ${a}`,
+  );
+
+  // Verify write
+  await spinnerStep(
+    'Verifying write...',
+    async () => {
+      const pageAfter = await fetchPage(mcpClient, url);
+      if (!pageAfter.text.includes(TOGGLE_MARKER)) {
+        throw new Error('Post-write verification failed: toggle not found in page after write.');
+      }
+      return pageAfter;
+    },
+    'Verified',
+  );
+
+  await mcpClient.close();
+
+  const pageUrl = page.url.startsWith('http')
+    ? page.url
+    : `https://www.notion.so/${page.url}`;
+  note(pageUrl, 'Your page is ready');
+  outro('Done.');
 }
