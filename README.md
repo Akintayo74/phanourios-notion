@@ -32,23 +32,15 @@ After `bun link`, the `pan` command is available globally in your terminal.
 
 ## Setup
 
-Set your Anthropic API key:
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-```
-
-Add this to your shell profile (`.bashrc`, `.zshrc`, etc.) to make it permanent.
-
-Then run the one-time setup:
+Run the one-time setup:
 
 ```bash
 pan init
 ```
 
 `pan init` will:
-1. Ask whether to search within a specific database or your entire workspace
-2. If database mode: ask for the URL or ID of your notes database (a commonplace book, reading list, bookmarks — any collection you want searched)
+1. Ask for your Anthropic API key (or detect it from the `ANTHROPIC_API_KEY` environment variable)
+2. Ask whether to search your entire workspace or scope to a specific database
 3. Open a browser tab to authorise Phanourios with your Notion account
 4. Save your configuration to `~/.pan/config.json`
 
@@ -105,7 +97,7 @@ Claude never has access to Notion. It only receives text and returns text. All M
 
 ## Notes
 
-- The `pan` command requires `ANTHROPIC_API_KEY` to be set in the environment.
+- The API key is stored in `~/.pan/config.json` during `pan init`. You can also set `ANTHROPIC_API_KEY` in your environment (takes precedence over config).
 - OAuth tokens are stored in `~/.pan/oauth/` and refreshed automatically.
 - Config is stored in `~/.pan/config.json`. Run `pan init` again to reconfigure.
 - For best results, point `pan init` at a database with a substantial collection of notes — the more entries, the richer the connections.

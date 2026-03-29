@@ -2,6 +2,7 @@ export interface Config {
   dataSourceUrl: string;
   searchMode: 'database' | 'workspace';
   model: string;
+  anthropicApiKey?: string;
 }
 
 export interface PageContent {

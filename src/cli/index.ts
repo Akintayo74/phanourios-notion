@@ -11,7 +11,7 @@ program
   .version('1.0.0');
 
 const init = new Command('init')
-  .description('Set up Phanourios: authenticate with Notion and configure your notes database')
+  .description('Set up Phanourios: configure API key, authenticate with Notion, and choose search scope')
   .action(async () => {
     try {
       await initCommand();

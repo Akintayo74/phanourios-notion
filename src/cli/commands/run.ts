@@ -22,10 +22,10 @@ async function spinnerStep<T>(
 ): Promise<T> {
   try {
     return await withSpinner(startMsg, fn, stopMsg);
-  } catch {
+  } catch (err) {
     // withSpinner already called s.error() with the message
     outro('Exited.');
-    process.exit(1);
+    throw err;
   }
 }
 
@@ -42,9 +42,12 @@ export async function runCommand(url: string, options: RunOptions): Promise<void
     process.exit(1);
   }
 
-  // Pre-flight: API key
+  // Pre-flight: API key — prefer env var, fall back to config
+  if (!process.env.ANTHROPIC_API_KEY && config.anthropicApiKey) {
+    process.env.ANTHROPIC_API_KEY = config.anthropicApiKey;
+  }
   if (!process.env.ANTHROPIC_API_KEY) {
-    log.error('ANTHROPIC_API_KEY environment variable is not set.');
+    log.error('Anthropic API key not found. Set ANTHROPIC_API_KEY or run `pan init` to configure it.');
     outro('Exited.');
     process.exit(1);
   }
@@ -58,95 +61,94 @@ export async function runCommand(url: string, options: RunOptions): Promise<void
     'Connected',
   );
 
-  // Read page
-  const page = await spinnerStep(
-    'Reading page...',
-    () => fetchPage(mcpClient, url),
-    (p) => `"${p.title}"`,
-  );
+  try {
+    // Read page
+    const page = await spinnerStep(
+      'Reading page...',
+      () => fetchPage(mcpClient, url),
+      (p) => `"${p.title}"`,
+    );
 
-  // Detect existing toggle
-  const hasExistingToggle = page.text.includes(TOGGLE_MARKER);
-  if (hasExistingToggle && !options.dryRun) {
-    if (options.replace) {
-      log.info('Existing toggle found — replacing.');
-    } else {
-      const shouldReplace = await confirm({
-        message: '"Threads & Constellations" already exists on this page. Replace it?',
-      });
-      if (isCancel(shouldReplace) || !shouldReplace) {
-        await mcpClient.close();
-        outro('Skipped.');
-        return;
+    // Detect existing toggle
+    const hasExistingToggle = page.text.includes(TOGGLE_MARKER);
+    if (hasExistingToggle && !options.dryRun) {
+      if (options.replace) {
+        log.info('Existing toggle found — replacing.');
+      } else {
+        const shouldReplace = await confirm({
+          message: '"Threads & Constellations" already exists on this page. Replace it?',
+        });
+        if (isCancel(shouldReplace) || !shouldReplace) {
+          outro('Skipped.');
+          return;
+        }
       }
     }
-  }
 
-  // Generate search queries
-  const queries = await spinnerStep(
-    'Generating search queries...',
-    () => generateSearchQueries(page.text, QUERY_MODEL),
-    'Queries generated',
-  );
-  log.step(queries.join(' · '));
+    // Generate search queries
+    const queries = await spinnerStep(
+      'Generating search queries...',
+      () => generateSearchQueries(page.text, QUERY_MODEL),
+      'Queries generated',
+    );
+    log.step(queries.join(' · '));
 
-  // Search notes
-  const results = await spinnerStep(
-    'Searching your notes...',
-    () => collectSearchResults(mcpClient, queries, config!),
-    (r) => `${r.length} note${r.length === 1 ? '' : 's'} found`,
-  );
+    // Search notes
+    const results = await spinnerStep(
+      'Searching your notes...',
+      () => collectSearchResults(mcpClient, queries, config!),
+      (r) => `${r.length} note${r.length === 1 ? '' : 's'} found`,
+    );
 
-  // Find connections
-  const toggle = await spinnerStep(
-    'Finding connections — this takes a moment...',
-    () => findConnections(page, results, model),
-    (t) => t.includes(TOGGLE_MARKER) ? 'Connections found' : 'Analysis complete',
-  );
+    // Find connections
+    const toggle = await spinnerStep(
+      'Finding connections — this takes a moment...',
+      () => findConnections(page, results, model),
+      (t) => t.includes(TOGGLE_MARKER) ? 'Connections found' : 'Analysis complete',
+    );
 
-  const hasConnections = toggle.includes(TOGGLE_MARKER);
+    const hasConnections = toggle.includes(TOGGLE_MARKER);
 
-  // No connections — show reasoning and exit without writing
-  if (!hasConnections) {
-    log.warn(toggle);
+    // No connections — show reasoning and exit without writing
+    if (!hasConnections) {
+      log.warn(toggle);
+      outro('Done — no connections written.');
+      return;
+    }
+
+    // Dry-run path
+    if (options.dryRun) {
+      log.message(toggle);
+      outro('Dry run complete.');
+      return;
+    }
+
+    // Write toggle
+    const action = await spinnerStep(
+      'Writing to Notion...',
+      () => writeToggle(mcpClient, url, toggle),
+      (a) => `Toggle ${a}`,
+    );
+
+    // Verify write
+    await spinnerStep(
+      'Verifying write...',
+      async () => {
+        const pageAfter = await fetchPage(mcpClient, url);
+        if (!pageAfter.text.includes(TOGGLE_MARKER)) {
+          throw new Error('Post-write verification failed: toggle not found in page after write.');
+        }
+        return pageAfter;
+      },
+      'Verified',
+    );
+
+    const pageUrl = page.url.startsWith('http')
+      ? page.url
+      : `https://www.notion.so/${page.url}`;
+    note(pageUrl, 'Your page is ready');
+    outro('Done.');
+  } finally {
     await mcpClient.close();
-    outro('Done — no connections written.');
-    return;
   }
-
-  // Dry-run path
-  if (options.dryRun) {
-    log.message(toggle);
-    await mcpClient.close();
-    outro('Dry run complete.');
-    return;
-  }
-
-  // Write toggle
-  const action = await spinnerStep(
-    'Writing to Notion...',
-    () => writeToggle(mcpClient, url, toggle),
-    (a) => `Toggle ${a}`,
-  );
-
-  // Verify write
-  await spinnerStep(
-    'Verifying write...',
-    async () => {
-      const pageAfter = await fetchPage(mcpClient, url);
-      if (!pageAfter.text.includes(TOGGLE_MARKER)) {
-        throw new Error('Post-write verification failed: toggle not found in page after write.');
-      }
-      return pageAfter;
-    },
-    'Verified',
-  );
-
-  await mcpClient.close();
-
-  const pageUrl = page.url.startsWith('http')
-    ? page.url
-    : `https://www.notion.so/${page.url}`;
-  note(pageUrl, 'Your page is ready');
-  outro('Done.');
 }

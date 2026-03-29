@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { MCPOAuthClientProvider, FileStorage } from 'mcp-oauth-provider';
 import { auth } from '@modelcontextprotocol/sdk/client/auth.js';
 import { createCallbackServer } from 'mcp-oauth-provider/server';
+import { SUCCESS_HTML, ERROR_HTML } from './callback-templates.js';
 
 export const NOTION_MCP_URL = 'https://mcp.notion.com/mcp';
 const CALLBACK_PORT = 8080;
@@ -33,7 +34,11 @@ export function createProvider(): PanOAuthProvider {
 }
 
 async function runBrowserFlow(provider: PanOAuthProvider): Promise<void> {
-  const server = await createCallbackServer({ port: CALLBACK_PORT });
+  const server = await createCallbackServer({
+    port: CALLBACK_PORT,
+    successHtml: SUCCESS_HTML,
+    errorHtml: ERROR_HTML,
+  });
   try {
     const result = await auth(provider, { serverUrl: NOTION_MCP_URL });
     if (result === 'REDIRECT') {

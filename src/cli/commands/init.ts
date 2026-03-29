@@ -5,7 +5,7 @@ import { createProvider, ensureAuthenticated } from '../../mcp/oauth.js';
 import { createMcpClient, fetchPage } from '../../mcp/client.js';
 import { writeConfig } from '../../config/store.js';
 import { DEFAULT_MODEL } from '../../config/schema.js';
-import { spinner, intro, outro, confirm, select, text, isCancel } from '../ui.js';
+import { spinner, intro, outro, log, confirm, select, text, isCancel } from '../ui.js';
 
 const CONFIG_PATH = join(homedir(), '.pan', 'config.json');
 
@@ -23,12 +23,31 @@ export async function initCommand(): Promise<void> {
     }
   }
 
-  // 1. Search mode selection
+  // 1. API key
+  let anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  if (!anthropicApiKey) {
+    const keyInput = await text({
+      message: 'Anthropic API key (starts with sk-ant-):',
+      validate: (value) => {
+        if (!value || value.trim().length === 0) return 'API key is required.';
+        if (!value.trim().startsWith('sk-ant-')) return 'That doesn\'t look like an Anthropic API key.';
+      },
+    });
+    if (isCancel(keyInput)) {
+      outro('Setup cancelled.');
+      return;
+    }
+    anthropicApiKey = (keyInput as string).trim();
+  } else {
+    log.info('Using ANTHROPIC_API_KEY from environment.');
+  }
+
+  // 2. Search mode selection
   const searchMode = await select({
     message: 'How should Phanourios search for related notes?',
     options: [
-      { value: 'database', label: 'Search within a specific database (recommended)' },
-      { value: 'workspace', label: 'Search my entire workspace' },
+      { value: 'workspace', label: 'Search my entire workspace (recommended)' },
+      { value: 'database', label: 'Search within a specific database' },
     ],
   });
   if (isCancel(searchMode)) {
@@ -36,7 +55,7 @@ export async function initCommand(): Promise<void> {
     return;
   }
 
-  // 2. Database URL (if database mode)
+  // 3. Database URL (if database mode)
   let rawDatabaseInput = '';
   if (searchMode === 'database') {
     const input = await text({
@@ -55,7 +74,7 @@ export async function initCommand(): Promise<void> {
     rawDatabaseInput = input as string;
   }
 
-  // 3. Auth spinner
+  // 4. Auth spinner
   const s1 = spinner();
   s1.start('Authenticating with Notion...');
   try {
@@ -68,7 +87,7 @@ export async function initCommand(): Promise<void> {
     process.exit(1);
   }
 
-  // 4. Connect spinner
+  // 5. Connect spinner
   const s2 = spinner();
   s2.start('Connecting to Notion...');
   let mcpClient: Awaited<ReturnType<typeof createMcpClient>>;
@@ -81,7 +100,7 @@ export async function initCommand(): Promise<void> {
     process.exit(1);
   }
 
-  // 5. Fetch database and extract data-source URL (database mode only)
+  // 6. Fetch database and extract data-source URL (database mode only)
   let dataSourceUrl = '';
   if (searchMode === 'database') {
     const s3 = spinner();
@@ -102,14 +121,16 @@ export async function initCommand(): Promise<void> {
       outro('Setup failed.');
       process.exit(1);
     }
-    await mcpClient!.close();
   }
 
-  // 6. Save config
+  await mcpClient!.close();
+
+  // 7. Save config
   writeConfig({
     dataSourceUrl,
     searchMode: searchMode as 'database' | 'workspace',
     model: DEFAULT_MODEL,
+    anthropicApiKey,
   });
 
   outro('Setup complete! Run `pan <url>` to analyse a page.');
