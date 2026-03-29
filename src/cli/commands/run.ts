@@ -101,8 +101,18 @@ export async function runCommand(url: string, options: RunOptions): Promise<void
   const toggle = await spinnerStep(
     'Finding connections — this takes a moment...',
     () => findConnections(page, results, model),
-    'Connections found',
+    (t) => t.includes(TOGGLE_MARKER) ? 'Connections found' : 'Analysis complete',
   );
+
+  const hasConnections = toggle.includes(TOGGLE_MARKER);
+
+  // No connections — show reasoning and exit without writing
+  if (!hasConnections) {
+    log.warn(toggle);
+    await mcpClient.close();
+    outro('Done — no connections written.');
+    return;
+  }
 
   // Dry-run path
   if (options.dryRun) {
