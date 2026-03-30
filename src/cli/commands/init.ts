@@ -134,4 +134,5 @@ export async function initCommand(): Promise<void> {
   });
 
   outro('Setup complete! Run `pan <url>` to analyse a page.');
+  process.exit(0);
 }
