@@ -49,7 +49,7 @@ export const SUCCESS_HTML = `<!DOCTYPE html>
       stroke-width: 2;
       stroke-dasharray: 188.5;
       stroke-dashoffset: 188.5;
-      animation: draw-circle 0.5s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+      animation: draw-circle 0.7s cubic-bezier(0.65, 0, 0.45, 1) forwards;
     }
 
     .checkmark-check {
@@ -60,7 +60,11 @@ export const SUCCESS_HTML = `<!DOCTYPE html>
       stroke-linejoin: round;
       stroke-dasharray: 44;
       stroke-dashoffset: 44;
-      animation: draw-check 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards;
+      animation: draw-check 0.4s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+    }
+
+    .checkmark-wrapper svg {
+      animation: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 1.0s both;
     }
 
     @keyframes draw-circle {
@@ -69,6 +73,12 @@ export const SUCCESS_HTML = `<!DOCTYPE html>
 
     @keyframes draw-check {
       to { stroke-dashoffset: 0; }
+    }
+
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.12); }
+      100% { transform: scale(1); }
     }
 
     h1 {
