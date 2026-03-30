@@ -101,3 +101,9 @@ Claude never has access to Notion. It only receives text and returns text. All M
 - OAuth tokens are stored in `~/.pan/oauth/` and refreshed automatically.
 - Config is stored in `~/.pan/config.json`. Run `pan init` again to reconfigure.
 - For best results, point `pan init` at a database with a substantial collection of notes — the more entries, the richer the connections.
+
+---
+
+## License
+
+[MIT](LICENSE)
