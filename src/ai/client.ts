@@ -22,9 +22,9 @@ function extractToggleBlock(text: string): string {
     else if (text.startsWith('</details>', i)) { depth--; i += 10; if (depth === 0) return text.slice(start, i); }
     else i++;
   }
-  // Malformed (no matching close) — return from the opening tag so the caller
-  // sees the truncated toggle rather than a wall of reasoning text.
-  return text.slice(start);
+  // Malformed (no matching close) — return full text so the well-formedness
+  // check in the caller can catch it.
+  return text;
 }
 
 async function callClaude(

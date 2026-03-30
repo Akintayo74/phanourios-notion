@@ -1,4 +1,5 @@
 import type { PageContent, SearchResult } from '../types.js';
+import { stripPageTag } from '../mcp/client.js';
 
 // ---------------------------------------------------------------------------
 // System prompt for the connections engine (from system-prompt-v1.md)
@@ -106,17 +107,8 @@ Return only the queries, one per line. No numbering, no explanation, no extra te
 // ---------------------------------------------------------------------------
 
 const SEED_TEXT_LIMIT = 6000; // chars — keeps input tokens reasonable
-const HIGHLIGHT_LIMIT = 500;  // chars per search result (API max for max_highlight_length)
+const RESULT_CONTENT_LIMIT = 1800; // chars per search result (~300 words)
 const TOGGLE_MARKER = '<details>\n<summary>**Threads & Constellations**</summary>';
-
-function stripPageTag(text: string): string {
-  const start = text.indexOf('<content>\n');
-  const end = text.lastIndexOf('\n</content>');
-  if (start !== -1 && end !== -1 && end > start) {
-    return text.slice(start + '<content>\n'.length, end).trim();
-  }
-  return text.replace(/^<page[^>]*>\n?/, '').replace(/\n?<\/page>$/, '').trim();
-}
 
 export function buildQueriesUserMessage(pageText: string): string {
   const stripped = stripPageTag(pageText);
@@ -145,9 +137,10 @@ export function buildConnectionsUserMessage(page: PageContent, results: SearchRe
   message += '## Commonplace book entries\n\n';
   for (const result of results) {
     const notionUrl = `https://www.notion.so/${result.url}`;
-    const content = result.content.length > HIGHLIGHT_LIMIT
-      ? result.content.slice(0, HIGHLIGHT_LIMIT) + '…'
-      : result.content;
+    const strippedContent = stripPageTag(result.content);
+    const content = strippedContent.length > RESULT_CONTENT_LIMIT
+      ? strippedContent.slice(0, RESULT_CONTENT_LIMIT) + '…'
+      : strippedContent;
     message += `### ${result.title}\n`;
     if (content) message += `${content}\n`;
     message += `Notion URL: ${notionUrl}\n\n`;

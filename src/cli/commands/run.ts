@@ -108,9 +108,10 @@ export async function runCommand(url: string, options: RunOptions): Promise<void
     );
 
     const hasConnections = toggle.includes(TOGGLE_MARKER);
+    const isWellFormed = toggle.trimEnd().endsWith('</details>');
 
-    // No connections — show reasoning and exit without writing
-    if (!hasConnections) {
+    // No connections or malformed toggle — show reasoning and exit without writing
+    if (!hasConnections || !isWellFormed) {
       log.warn(toggle);
       outro('Done — no connections written.');
       return;
