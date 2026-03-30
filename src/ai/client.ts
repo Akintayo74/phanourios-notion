@@ -7,6 +7,26 @@ import {
   buildConnectionsUserMessage,
 } from './prompt.js';
 
+/**
+ * Extract the outermost <details>...</details> block from a Claude response,
+ * discarding any reasoning preamble the model may have emitted before it.
+ * Returns the full text unchanged if no <details> tag is found.
+ */
+function extractToggleBlock(text: string): string {
+  const start = text.indexOf('<details>');
+  if (start === -1) return text;
+  let depth = 0;
+  let i = start;
+  while (i < text.length) {
+    if (text.startsWith('<details>', i)) { depth++; i += 9; }
+    else if (text.startsWith('</details>', i)) { depth--; i += 10; if (depth === 0) return text.slice(start, i); }
+    else i++;
+  }
+  // Malformed (no matching close) — return full text so the well-formedness
+  // check in the caller can catch it.
+  return text;
+}
+
 async function callClaude(
   system: string,
   user: string,
@@ -63,5 +83,6 @@ export async function findConnections(
   model: string,
 ): Promise<string> {
   const user = buildConnectionsUserMessage(page, results);
-  return callClaude(SYSTEM_PROMPT, user, model, 4096);
+  const raw = await callClaude(SYSTEM_PROMPT, user, model, 4096);
+  return extractToggleBlock(raw);
 }

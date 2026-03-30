@@ -5,8 +5,16 @@ import type { PageContent, SearchHit } from '../types.js';
 
 const TOGGLE_MARKER = '<details>\n<summary>**Threads & Constellations**</summary>';
 
-function stripPageTag(text: string): string {
-  return text.replace(/^<page>\n?/, '').replace(/\n?<\/page>$/, '');
+export function stripPageTag(text: string): string {
+  // notion-fetch wraps page content in <content>...</content> inside a <page> wrapper
+  // with a preamble ("Here is the result of..."). Extract just the content block.
+  const start = text.indexOf('<content>\n');
+  const end = text.lastIndexOf('\n</content>');
+  if (start !== -1 && end !== -1 && end > start) {
+    return text.slice(start + '<content>\n'.length, end).trim();
+  }
+  // Fallback for unexpected formats
+  return text.replace(/^<page[^>]*>\n?/, '').replace(/\n?<\/page>$/, '').trim();
 }
 
 /**
@@ -63,9 +71,21 @@ function getAnchor(content: string, n: number): string {
 }
 
 async function _connect(provider: ReturnType<typeof createProvider>): Promise<Client> {
+  // Get a fresh token and pass it as a static header rather than giving the
+  // transport the full authProvider.  This prevents the transport from
+  // independently calling auth() → redirectToAuthorization() on a 401,
+  // which would open a browser tab with no callback server to capture it.
+  // ensureAuthenticated() is the single owner of the browser-based auth flow.
+  const tokens = await provider.tokens();
+  if (!tokens?.access_token) throw new Error('Unauthorized');
+
   const transport = new StreamableHTTPClientTransport(
     new URL(NOTION_MCP_URL),
-    { authProvider: provider }
+    {
+      requestInit: {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      },
+    }
   );
   const client = new Client(
     { name: 'phanourios', version: '1.0.0' },

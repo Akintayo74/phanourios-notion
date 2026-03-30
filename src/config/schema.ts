@@ -13,5 +13,8 @@ export function validateConfig(raw: unknown): Config {
     dataSourceUrl: c.dataSourceUrl,
     searchMode: c.searchMode,
     model: typeof c.model === 'string' ? c.model : DEFAULT_MODEL,
+    ...(typeof c.anthropicApiKey === 'string' && c.anthropicApiKey
+      ? { anthropicApiKey: c.anthropicApiKey }
+      : {}),
   };
 }

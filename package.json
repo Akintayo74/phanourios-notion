@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "bun run src/cli/index.ts",
-    "build": "tsup",
+    "build": "tsup && chmod +x dist/cli/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -22,7 +22,7 @@
     "cli"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
   "bugs": {
     "url": "https://github.com/Akintayo74/phanourios-notion/issues"
